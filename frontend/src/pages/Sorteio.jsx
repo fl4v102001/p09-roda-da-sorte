@@ -115,16 +115,37 @@ function Sorteio() {
         break;
       }
     }
-    const anguloPorUnidade = 360 / total;
-    let anguloInicialItem = 0;
-    for (const item of config.itens) {
-      if (item.nome === itemVencedor.nome) break;
-      anguloInicialItem += item.quantidade * anguloPorUnidade;
-    }
-    const anguloFatia = itemVencedor.quantidade * anguloPorUnidade;
-    const anguloVencedor = anguloInicialItem + Math.random() * anguloFatia;
-    const voltasExtras = 5 * 360;
-    const anguloFinalAnimacao = voltasExtras + (360 - anguloVencedor);
+// CÓDIGO NOVO E CORRIGIDO
+const anguloPorUnidade = 360 / total;
+let anguloInicialItem = 0;
+for (const item of config.itens) {
+    if (item.nome === itemVencedor.nome) break;
+    anguloInicialItem += item.quantidade * anguloPorUnidade;
+}
+const anguloFatia = itemVencedor.quantidade * anguloPorUnidade;
+
+// Sorteia um ângulo exato dentro da fatia vencedora
+const anguloVencedor = anguloInicialItem + Math.random() * anguloFatia;
+
+// --- INÍCIO DA LÓGICA CORRIGIDA ---
+
+// O ângulo alvo na roda (0-360) que deve parar sob o ponteiro (que está no topo, a 0/360 graus)
+const targetAngle = 360 - anguloVencedor;
+
+// A posição angular atual da roda, ignorando as voltas completas
+const currentAngle = rotation % 360;
+
+// Calcula a distância a girar no sentido horário.
+// Adicionamos 360 para garantir que o resultado seja sempre positivo.
+const spinAmount = (targetAngle - currentAngle + 360) % 360;
+
+// Adiciona várias voltas completas para um efeito visual mais interessante
+const voltasExtras = 5 * 360;
+
+// A nova rotação total é a rotação antiga + as voltas extras + a distância calculada
+const anguloFinalAnimacao = rotation + voltasExtras + spinAmount;
+
+// --- FIM DA LÓGICA CORRIGIDA ---
     
     setRotation(anguloFinalAnimacao);
     setVencedor(itemVencedor.nome);
