@@ -95,7 +95,7 @@ function Sorteio() {
   
   const sincronizarConfig = () => {
     ws.current.send(JSON.stringify({ type: 'SYNC_CONFIG', id_sorteio, payload: config }));
-    alert('Configurações sincronizadas!');
+    // alert('Configurações sincronizadas!');
   };
   const enviarMensagem = () => {
     if (!mensagem.trim()) return;
