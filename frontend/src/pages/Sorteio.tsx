@@ -1,39 +1,65 @@
-// frontend/src/pages/Sorteio.jsx
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import RodaSVG from '../components/RodaSVG';
 
+// --- Definições de Tipos para o Componente ---
+
+interface Item {
+  nome: string;
+  quantidade: number;
+}
+
+interface Config {
+  titulo: string;
+  itens: Item[];
+  tempoRotacao: number;
+  corFundo: string;
+  paleta: string[];
+}
+
+type Role = 'configurador' | 'espectador';
+
+// Tipos para as mensagens do WebSocket (Discriminated Union)
+type ServerMessage =
+  | { type: 'ROLE_ASSIGNED'; payload: { role: Role } }
+  | { type: 'CONFIG_UPDATE'; payload: Config }
+  | { type: 'MESSAGE_RECEIVE'; payload: { texto: string } }
+  | { type: 'DRAW_RESULT'; payload: { anguloFinal: number; vencedor: string; tempoRotacao: number } }
+  | { type: 'CONFIGURATOR_LEFT' };
+
 const COLORS = ['#FF6B6B', '#FFD93D', '#6BCB77', '#4D96FF', '#F473B9', '#A16AE8'];
 
+// --- Início do Componente ---
+
 function Sorteio() {
-  const { id_sorteio } = useParams();
+  // Tipando o retorno do useParams para garantir que id_sorteio é uma string
+  const { id_sorteio } = useParams<{ id_sorteio: string }>();
   const navigate = useNavigate();
-  const ws = useRef(null);
+  // Tipando a ref do WebSocket
+  const ws = useRef<WebSocket | null>(null);
   
   // Estado para controlar o papel do usuário
-  const [role, setRole] = useState('espectador');
+  const [role, setRole] = useState<Role>('espectador');
 
   // Estados da Roda (combinados de ambos os ficheiros)
-  const [config, setConfig] = useState({
+  const [config, setConfig] = useState<Config>({
     titulo: 'Roda da Sorte',
     itens: [],
     tempoRotacao: 10,
     corFundo: '#111827',
     paleta: COLORS,
   });
-  const [mensagens, setMensagens] = useState([]);
-  const [mensagem, setMensagem] = useState('');
-  const [rotation, setRotation] = useState(0);
-  const [vencedor, setVencedor] = useState(null);
+  const [mensagens, setMensagens] = useState<string[]>([]);
+  const [mensagem, setMensagem] = useState<string>('');
+  const [rotation, setRotation] = useState<number>(0);
+  const [vencedor, setVencedor] = useState<string | null>(null);
 
   // Efeito para gerir a conexão WebSocket
   useEffect(() => {
-    // Evita múltiplas conexões
-    if (ws.current) return;
+    let isClosing = false; // Flag para indicar um fecho intencional
 
-    ws.current = new WebSocket('ws://localhost:8080');
-    const wsInstance = ws.current;
+    const wsInstance = new WebSocket('ws://localhost:8080');
+    ws.current = wsInstance;
 
     wsInstance.onopen = () => {
       console.log('Conectado ao sorteio!');
@@ -41,7 +67,7 @@ function Sorteio() {
     };
 
     wsInstance.onmessage = (event) => {
-      const data = JSON.parse(event.data);
+      const data: ServerMessage = JSON.parse(event.data);
       switch (data.type) {
         case 'ROLE_ASSIGNED':
           setRole(data.payload.role);
@@ -69,8 +95,11 @@ function Sorteio() {
 
     wsInstance.onclose = () => {
       console.log('Desconectado.');
-      alert('A conexão com o servidor foi perdida.');
-      navigate('/');
+      // Apenas mostra o alerta e redireciona se a conexão não foi fechada intencionalmente
+      if (!isClosing) {
+        alert('A conexão com o servidor foi perdida.');
+        navigate('/');
+      }
     };
 
     wsInstance.onerror = (error) => {
@@ -78,28 +107,29 @@ function Sorteio() {
     };
 
     return () => {
-      console.log("A limpar conexão WebSocket...");
+      console.log("A limpar conexão WebSocket intencionalmente...");
+      isClosing = true;
       wsInstance.close();
       ws.current = null;
     };
   }, [id_sorteio, navigate]);
 
   // Funções de controlo (do antigo Config.jsx)
-  const handleItemChange = (index, field, value) => {
+  const handleItemChange = (index: number, field: keyof Item, value: string) => {
     const novosItens = [...config.itens];
-    novosItens[index][field] = field === 'quantidade' ? parseInt(value, 10) || 1 : value;
+    const itemToUpdate = { ...novosItens[index], [field]: field === 'quantidade' ? parseInt(value, 10) || 1 : value };
+    novosItens[index] = itemToUpdate;
     setConfig(prev => ({...prev, itens: novosItens}));
   };
   const adicionarItem = () => setConfig(prev => ({...prev, itens: [...prev.itens, { nome: `Novo Item ${prev.itens.length + 1}`, quantidade: 1 }]}));
-  const removerItem = (index) => setConfig(prev => ({...prev, itens: prev.itens.filter((_, i) => i !== index)}));
+  const removerItem = (index: number) => setConfig(prev => ({...prev, itens: prev.itens.filter((_, i) => i !== index)}));
   
   const sincronizarConfig = () => {
-    ws.current.send(JSON.stringify({ type: 'SYNC_CONFIG', id_sorteio, payload: config }));
-    // alert('Configurações sincronizadas!');
+    ws.current?.send(JSON.stringify({ type: 'SYNC_CONFIG', id_sorteio, payload: config }));
   };
   const enviarMensagem = () => {
     if (!mensagem.trim()) return;
-    ws.current.send(JSON.stringify({ type: 'SEND_MESSAGE', id_sorteio, payload: { texto: mensagem } }));
+    ws.current?.send(JSON.stringify({ type: 'SEND_MESSAGE', id_sorteio, payload: { texto: mensagem } }));
     setMensagem('');
   };
   const iniciarSorteio = () => {
@@ -151,27 +181,28 @@ const anguloFinalAnimacao = rotation + voltasExtras + spinAmount;
     setVencedor(itemVencedor.nome);
 
     const payload = { anguloFinal: anguloFinalAnimacao, vencedor: itemVencedor.nome, tempoRotacao: config.tempoRotacao };
-    ws.current.send(JSON.stringify({ type: 'START_DRAW', id_sorteio, payload }));
+    ws.current?.send(JSON.stringify({ type: 'START_DRAW', id_sorteio, payload }));
   };
   
-  const handleConfigChange = (field, value) => {
-      setConfig(prev => ({...prev, [field]: value}));
+  const handleConfigChange = (field: keyof Omit<Config, 'itens' | 'paleta'>, value: string | number) => {
+      setConfig(prev => ({...prev, [field]: value }));
   };
 
   // UI do Configurador
   const renderConfigurator = () => (
     <div className="md:w-1/2 bg-gray-800 p-6 overflow-y-auto">
+      <button onClick={iniciarSorteio} className="w-full bg-cyan-600 hover:bg-cyan-700 font-bold py-4 rounded text-xl">INICIAR SORTEIO!</button>
       <h3 className="text-2xl font-bold mb-4 border-b border-gray-600 pb-2">Painel de Configuração</h3>
       <p className="mb-4 text-sm text-gray-400">ID: <span className="font-mono bg-gray-700 p-1 rounded">{id_sorteio}</span></p>
-      <div className="mb-4"><label className="block mb-2 font-semibold">Título</label><input type="text" value={config.titulo} onChange={(e) => handleConfigChange('titulo', e.target.value)} className="w-full p-2 bg-gray-700 rounded"/></div>
-      <div className="mb-4"><label className="block mb-2 font-semibold">Tempo de Rotação (s)</label><input type="number" value={config.tempoRotacao} onChange={(e) => handleConfigChange('tempoRotacao', Number(e.target.value))} className="w-full p-2 bg-gray-700 rounded"/></div>
-      <div className="mb-4"><label className="block mb-2 font-semibold">Cor de Fundo</label><input type="color" value={config.corFundo} onChange={(e) => handleConfigChange('corFundo', e.target.value)} className="w-full p-1 h-10 bg-gray-700 rounded"/></div>
+      <div className="mb-4"><label className="block mb-2 font-semibold">Título</label><input type="text" value={config.titulo} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleConfigChange('titulo', e.target.value)} className="w-full p-2 bg-gray-700 rounded"/></div>
+      <div className="mb-4"><label className="block mb-2 font-semibold">Tempo de Rotação (s)</label><input type="number" value={config.tempoRotacao} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleConfigChange('tempoRotacao', Number(e.target.value))} className="w-full p-2 bg-gray-700 rounded"/></div>
+      <div className="mb-4"><label className="block mb-2 font-semibold">Cor de Fundo</label><input type="color" value={config.corFundo} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleConfigChange('corFundo', e.target.value)} className="w-full p-1 h-10 bg-gray-700 rounded"/></div>
       <div className="mb-4">
         <h4 className="text-xl font-bold mb-2">Itens da Roda</h4>
         {config.itens.map((item, index) => (
           <div key={index} className="flex items-center gap-2 mb-2 p-2 bg-gray-700 rounded">
-            <input type="text" value={item.nome} onChange={(e) => handleItemChange(index, 'nome', e.target.value)} className="flex-grow p-1 bg-gray-600 rounded" />
-            <input type="number" value={item.quantidade} onChange={(e) => handleItemChange(index, 'quantidade', e.target.value)} className="w-20 p-1 bg-gray-600 rounded" />
+            <input type="text" value={item.nome} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleItemChange(index, 'nome', e.target.value)} className="flex-grow p-1 bg-gray-600 rounded" />
+            <input type="number" value={item.quantidade} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleItemChange(index, 'quantidade', e.target.value)} className="w-20 p-1 bg-gray-600 rounded" />
             <button onClick={() => removerItem(index)} className="bg-red-600 hover:bg-red-700 text-white font-bold p-1 rounded">X</button>
           </div>
         ))}
@@ -180,10 +211,9 @@ const anguloFinalAnimacao = rotation + voltasExtras + spinAmount;
       <div className="p-4 bg-gray-900 rounded-lg">
         <button onClick={sincronizarConfig} className="w-full mb-4 bg-green-600 hover:bg-green-700 font-bold py-3 rounded">Sincronizar</button>
         <div className="flex gap-2 mb-4">
-          <input type="text" value={mensagem} onChange={(e) => setMensagem(e.target.value)} placeholder="Digite uma mensagem..." className="flex-grow p-2 bg-gray-700 rounded" />
+          <input type="text" value={mensagem} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMensagem(e.target.value)} placeholder="Digite uma mensagem..." className="flex-grow p-2 bg-gray-700 rounded" />
           <button onClick={enviarMensagem} className="bg-purple-600 hover:bg-purple-700 p-2 rounded">Enviar</button>
         </div>
-        <button onClick={iniciarSorteio} className="w-full bg-cyan-600 hover:bg-cyan-700 font-bold py-4 rounded text-xl">INICIAR SORTEIO!</button>
       </div>
     </div>
   );

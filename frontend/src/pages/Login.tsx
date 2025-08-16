@@ -1,10 +1,10 @@
 // frontend/src/pages/Login.jsx
 
-import React, { useState } from 'react';
+import React, { useState } from 'react'; // React é importado da mesma forma
 import { useNavigate } from 'react-router-dom';
 
 function Login() {
-  const [idSorteio, setIdSorteio] = useState('');
+  const [idSorteio, setIdSorteio] = useState<string>(''); // Tipamos o estado como 'string'
   const navigate = useNavigate();
 
   const handleEntrar = () => {
@@ -16,7 +16,7 @@ function Login() {
     }
   };
 
-  const handleKeyDown = (event) => {
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => { // Tipamos o evento do teclado
     if (event.key === 'Enter') {
       handleEntrar();
     }
@@ -35,7 +35,7 @@ function Login() {
           id="input_ID_SORTEIO"
           type="text"
           value={idSorteio}
-          onChange={(e) => setIdSorteio(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setIdSorteio(e.target.value)} // Tipamos o evento de mudança
           onKeyDown={handleKeyDown}
           placeholder="Ex: sorteio-da-empresa-2025"
           className="w-full p-3 mb-4 bg-gray-800 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
